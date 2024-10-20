@@ -186,15 +186,6 @@ int main(void) {
         system(command);
     }
 
-    install_package("git");
-    install_package("mingw-w64-x86_64-gcc");
-    install_package("mingw-w64-x86_64-cmake");
-    install_package("mingw-w64-x86_64-ninja");
-
-    // msys("gcc --version");
-    // msys("git --version");
-    // msys("cmake --version");
-    // msys("ninja --version");
     char *buffer = read_file_as_null_terminated_string("launch.json");
     nx_json const *json = nx_json_parse_utf8(buffer);
 
@@ -203,10 +194,20 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    const char *repo =      nx_json_get(json, "repo")->text_value;
-    const char *branch =    nx_json_get(json, "branch")->text_value;
-    const char *executable= nx_json_get(json, "executable")->text_value;
-    
+    const char *    repo =      nx_json_get(json, "repo")->text_value;
+    const char *    branch =    nx_json_get(json, "branch")->text_value;
+    const char *    executable= nx_json_get(json, "executable")->text_value;
+    nx_json const * packages =  nx_json_get(json, "additional packages");
+
+    if(!exists("repository/build")) {
+        for(int i = 0; i < packages->children.length; ++i) {
+            install_package(nx_json_item(packages, i)->text_value);
+        }
+        install_package("git");
+        install_package("mingw-w64-x86_64-gcc");
+        install_package("mingw-w64-x86_64-cmake");
+        install_package("mingw-w64-x86_64-ninja");
+    }
     
     printf("repo: %s on branch %s\n", repo, branch);
     printf("executable: %s\n", executable);
@@ -216,6 +217,7 @@ int main(void) {
     ok = ok && launch(executable);
     
     system("pause");
+    nx_json_free(json);
     free(buffer);
     return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }

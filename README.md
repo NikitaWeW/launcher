@@ -13,6 +13,7 @@ There also is a Makefile if you need it
 | repo | repository url|
 | branch | git branch to clone |
 | executable | executable to launch after building |
+| additional packages | msys packages to install (not including gcc. cmake, etc.) |
 ---
 # License
 ### MIT license (opensource)
