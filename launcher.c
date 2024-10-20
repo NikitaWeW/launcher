@@ -183,8 +183,14 @@ void add_to_path(const char *var) {
     SetEnvironmentVariable("PATH", newPath);
 }
 
-int main(void) {
-    snprintf(msys_dir, sizeof(msys_dir), "%s\\msys64", cwd());
+int main(int argc, char **argv) {
+    char *json_file_name;
+    if(argc == 1) {
+        json_file_name = "launch.json";
+    } else {
+        json_file_name = argv[1];
+    }
+    snprintf(msys_dir, sizeof(msys_dir), "%s\\msys64", cwd()); 
 
     if(!exists(msys_dir)) {
         printf("downloading msys installer...\n");
@@ -198,7 +204,7 @@ int main(void) {
     snprintf(msys_path, sizeof(msys_path), "%s\\mingw64\\bin;%s\\usr\\bin;", msys_dir, msys_dir);
     add_to_path(msys_path);
 
-    char *buffer = read_file_as_null_terminated_string("launch.json");
+    char *buffer = read_file_as_null_terminated_string(json_file_name);
     nx_json const *json = nx_json_parse_utf8(buffer);
 
     if(!json) {

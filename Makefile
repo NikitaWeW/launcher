@@ -11,7 +11,7 @@ all: $(OUT)
 
 $(OUT): $(SRC)
 	mkdir -p $(OUT_DIR)
-	$(CC) $(SRC) -o $(OUT) --static
+	$(CC) $(SRC) -o $(OUT) --static -O0 -g
 
 clean:
 	rm -rf $(OUT_DIR)
