@@ -178,12 +178,12 @@ int main(void) {
     snprintf(msys_dir, sizeof(msys_dir), "%s/msys64", cwd());
 
     if(!exists(msys_dir)) {
+        printf("downloading msys installer...\n");
+        system("curl https://repo.msys2.org/distrib/msys2-x86_64-latest.exe -o msys2-x86_64-latest.exe");
         printf("installing msys...\n");
         char command[500];
         snprintf(command, sizeof(command), ".\\msys2-x86_64-latest.exe in --confirm-command --accept-messages --root %s", msys_dir);
-        if(!system(command)) {
-            return EXIT_FAILURE;
-        }
+        system(command);
     }
 
     install_package("git");
