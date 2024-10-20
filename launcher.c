@@ -8,6 +8,44 @@
 #include <errno.h>
 #include "nxjson.h"
 
+char msys_dir[1024];
+char cuwd[1024];
+char unix_path[1024];
+
+char *convert_to_unix_path(const char *windows_path) {
+    // Allocate memory for the MSYS2 path (same length as windows_path + 1 for null terminator)
+    if (!unix_path) {
+        perror("Failed to allocate memory");
+        exit(EXIT_FAILURE);
+    }
+
+    if (windows_path[1] == ':') {
+        // Convert "C:\path" to "/c/path"
+        unix_path[0] = '/';
+        unix_path[1] = tolower(windows_path[0]);  // Convert drive letter to lowercase
+        unix_path[2] = '\0';  // Ensure string ends here
+        strcat(unix_path, &windows_path[2]);  // Append the rest of the path (skip "C:")
+    } else {
+        strcpy(unix_path, windows_path);  // If not a drive path, just copy the string
+    }
+
+    // Replace backslashes with forward slashes
+    for (int i = 0; unix_path[i] != '\0'; i++) {
+        if (unix_path[i] == '\\') {
+            unix_path[i] = '/';
+        }
+    }
+
+    return unix_path;
+}
+char *cwd() {
+    getcwd(cuwd, sizeof(cuwd));
+    return cuwd;
+}
+char *ucwd() {
+    getcwd(cuwd, sizeof(cuwd));
+    return convert_to_unix_path(cuwd);
+}
 time_t get_modification_time(const char *filename) {
     struct stat attr;
     if (stat(filename, &attr) == 0) {
@@ -17,32 +55,45 @@ time_t get_modification_time(const char *filename) {
         exit(EXIT_FAILURE);
     }
 }
-
-int setup(const char *name, const char *url, const char *branch) {
-    int ok;
+int exists(const char *name) {
     DIR *dir = opendir(name);
-    if(dir) { // directory exists, already cloned
+    if(dir) {
         closedir(dir);
-        chdir(name);
-        ok = system("git pull") == 0;
-        ok = system("git submodule update --remote --recursive") == 0;
-        dir = opendir("build");
-        if(dir) {
-            closedir(dir);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+int msys(const char *cmd) {
+    char command[500];
+    sprintf(command, "%s/usr/bin/bash.exe -lc \"export PATH=/mingw64/bin:$PATH; cd %s; %s\"", msys_dir, ucwd(), cmd);
+    return system(command);
+}
+
+int setup(const char *url, const char *branch) {
+    int ok;
+    if(exists("repository")) { // directory exists, already cloned
+        chdir("repository");
+        // char command[500];
+        // sprintf(command, "git -C %s/repositoy  pull -j 4 --autostash", cwd());
+        ok = msys("git pull -j 4 --autostash") == 0;
+        // sprintf(command, "git -C %s/repositoy submodule update --remote --recursive -j 4", cwd());
+        ok = msys("git submodule update --remote --recursive -j 4") == 0;
+        if(exists("build")) {
             if(get_modification_time("CMakeLists.txt") > get_modification_time("build/CMakeCache.txt")) 
             { // needs to be reconfigured
                 system("rmdir /s /q \"build\"");
-                ok = ok && system("cmake -S . -B build") == 0;
+                ok = ok && msys("cmake -S . -B build") == 0;
             }
         } else if(ENOENT == errno) {
-            ok = ok && system("cmake -S . -B build") == 0;
+            ok = ok && msys("cmake -S . -B build") == 0;
         }
     } else if(ENOENT == errno) {
         char command[500];
-        sprintf(command, "git clone %s -b %s --recursive", url, branch);
-        ok = system(command) == 0;
-        chdir(name);
-        ok = ok && system("cmake -S . -B build") == 0;
+        sprintf(command, "git clone %s repository -b %s --recursive", url, branch);
+        ok = msys(command) == 0;
+        chdir("repository");
+        ok = ok && msys("cmake -S . -B build") == 0;
     } else {
         return 0;
     }
@@ -50,7 +101,7 @@ int setup(const char *name, const char *url, const char *branch) {
 }
 
 int build() {
-    return system("cmake --build build") == 0;
+    return msys("cmake --build build") == 0;
 }
 int launch(const char *name) {
     return system(name) == 0;
@@ -93,7 +144,57 @@ char *read_file_as_null_terminated_string(const char *file_path) {
     return buffer;  // Return the buffer containing the null-terminated string
 }
 
+int is_package_installed(const char *package) {
+    char command[256];
+    snprintf(command, sizeof(command), 
+             "pacman -Q \"%s\" > /dev/null 2>&1", 
+             package);
+    int result = msys(command);
+    return result == 0;  // Returns 1 if installed, 0 if not
+}
+
+void install_package(const char *package) {
+    if (is_package_installed(package)) {
+        printf("%s is already installed.\n", package);
+        return;
+    }
+
+    printf("Installing %s...\n", package);
+    char command[256];
+    snprintf(command, sizeof(command), 
+             "%s\\usr\\bin\\pacman -S --needed --noconfirm %s", 
+             msys_dir,
+             package);
+
+    int result = system(command);
+    if (result != 0) {
+        fprintf(stderr, "Failed to install %s\n", package);
+        exit(EXIT_FAILURE);
+    }
+    printf("%s installed successfully.\n", package);
+}
+
 int main(void) {
+    snprintf(msys_dir, sizeof(msys_dir), "%s/msys64", cwd());
+
+    if(!exists(msys_dir)) {
+        printf("installing msys...\n");
+        char command[500];
+        snprintf(command, sizeof(command), ".\\msys2-x86_64-latest.exe in --confirm-command --accept-messages --root %s", msys_dir);
+        if(!system(command)) {
+            return EXIT_FAILURE;
+        }
+    }
+
+    install_package("git");
+    install_package("mingw-w64-x86_64-gcc");
+    install_package("mingw-w64-x86_64-cmake");
+    install_package("mingw-w64-x86_64-ninja");
+
+    // msys("gcc --version");
+    // msys("git --version");
+    // msys("cmake --version");
+    // msys("ninja --version");
     char *buffer = read_file_as_null_terminated_string("launch.json");
     nx_json const *json = nx_json_parse_utf8(buffer);
 
@@ -102,18 +203,15 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    const char *name =      nx_json_get(json, "name")->text_value;
     const char *repo =      nx_json_get(json, "repo")->text_value;
     const char *branch =    nx_json_get(json, "branch")->text_value;
     const char *executable= nx_json_get(json, "executable")->text_value;
     
     
-    printf("name: %s\n", name);
-    printf("repo: %s\n", repo);
-    printf("branch: %s\n", branch);
+    printf("repo: %s on branch %s\n", repo, branch);
     printf("executable: %s\n", executable);
 
-    int ok = setup(name, repo, branch);
+    int ok = setup(repo, branch);
     ok = ok && build();
     ok = ok && launch(executable);
     

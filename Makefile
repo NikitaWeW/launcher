@@ -11,7 +11,7 @@ all: $(OUT)
 
 $(OUT): $(SRC)
 	if not exist $(OUT_DIR) mkdir $(OUT_DIR)
-	$(CC) $(SRC) -o $(OUT)
+	$(CC) $(SRC) -o $(OUT) --static
 
 clean:
 	rm -rf $(OUT_DIR)

@@ -3,7 +3,7 @@ Small c tool to install the git repository, configure it with cmake and build co
 ## Building
 No specific build process requiered. Just build all *.c files:
 ``` shell
-gcc *.c -o out/launcher
+gcc *.c -o out/launcher --static
 ```
 There also is a Makefile if you need it
 
