@@ -173,9 +173,18 @@ void install_package(const char *package) {
     }
     printf("%s installed successfully.\n", package);
 }
+void add_to_path(const char *var) {
+    char currentPath[4096];
+    GetEnvironmentVariable("PATH", currentPath, sizeof(currentPath));
+
+    char newPath[4096];
+    snprintf(newPath, sizeof(newPath), "%s%s", var, currentPath);
+
+    SetEnvironmentVariable("PATH", newPath);
+}
 
 int main(void) {
-    snprintf(msys_dir, sizeof(msys_dir), "%s/msys64", cwd());
+    snprintf(msys_dir, sizeof(msys_dir), "%s\\msys64", cwd());
 
     if(!exists(msys_dir)) {
         printf("downloading msys installer...\n");
@@ -185,6 +194,9 @@ int main(void) {
         snprintf(command, sizeof(command), ".\\msys2-x86_64-latest.exe in --confirm-command --accept-messages --root %s", msys_dir);
         system(command);
     }
+    char msys_path[1024];
+    snprintf(msys_path, sizeof(msys_path), "%s\\mingw64\\bin;%s\\usr\\bin;", msys_dir, msys_dir);
+    add_to_path(msys_path);
 
     char *buffer = read_file_as_null_terminated_string("launch.json");
     nx_json const *json = nx_json_parse_utf8(buffer);
