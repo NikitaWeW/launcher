@@ -186,10 +186,12 @@ void add_to_path(const char *var) {
 int main(int argc, char **argv) {
     char *json_file_name;
     if(argc == 1) {
-        json_file_name = "launch.json";
+        json_file_name = "../launch.json";
     } else {
         json_file_name = argv[1];
     }
+    mkdir("launcher");
+    chdir("launcher");
     snprintf(msys_dir, sizeof(msys_dir), "%s\\msys64", cwd()); 
 
     if(!exists(msys_dir)) {

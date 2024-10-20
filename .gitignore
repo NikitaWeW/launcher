@@ -1,7 +1,4 @@
 .vscode
 launch.json
-repository
-msys64
 out
-InstallationLog.txt
-msys2-x86_64-latest.exe
+launcher
