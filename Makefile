@@ -7,7 +7,7 @@ SRC = $(wildcard *.c)
 
 OUT = $(OUT_DIR)/$(OUT_EXEC)
 
-BUILD_TYPE ?= release
+BUILD_TYPE ?= RELEASE
 
 CFLAGS_DEBUG = -g -O0
 CFLAGS_RELEASE = -O3 --static
