@@ -8,17 +8,12 @@
 #include <errno.h>
 #include "nxjson.h"
 
-char msys_dir[1024];
 char cuwd[1024];
+
+char msys_dir[1024];
 char unix_path[1024];
 
 char *convert_to_unix_path(const char *windows_path) {
-    // Allocate memory for the MSYS2 path (same length as windows_path + 1 for null terminator)
-    if (!unix_path) {
-        perror("Failed to allocate memory");
-        exit(EXIT_FAILURE);
-    }
-
     if (windows_path[1] == ':') {
         // Convert "C:\path" to "/c/path"
         unix_path[0] = '/';
@@ -56,58 +51,14 @@ time_t get_modification_time(const char *filename) {
     }
 }
 int exists(const char *name) {
-    DIR *dir = opendir(name);
-    if(dir) {
-        closedir(dir);
-        return 1;
-    } else {
-        return 0;
-    }
+  struct stat buffer;
+  return stat(name, &buffer) == 0;
 }
 int msys(const char *cmd) {
     char command[500];
-    sprintf(command, "%s/usr/bin/bash.exe -lc \"export PATH=/mingw64/bin:$PATH; cd %s; %s\"", msys_dir, ucwd(), cmd);
+    sprintf(command, "%s/usr/bin/bash.exe -lc 'export PATH=/mingw64/bin:$PATH; cd %s; %s'", msys_dir, ucwd(), cmd);
     return system(command);
 }
-
-int setup(const char *url, const char *branch) {
-    int ok;
-    if(exists("repository")) { // directory exists, already cloned
-        chdir("repository");
-        // char command[500];
-        // sprintf(command, "git -C %s/repositoy  pull -j 4 --autostash", cwd());
-        ok = msys("git pull -j 4 --autostash") == 0;
-        // sprintf(command, "git -C %s/repositoy submodule update --remote --recursive -j 4", cwd());
-        ok = msys("git submodule update --remote --recursive -j 4") == 0;
-        if(exists("build")) {
-            if(get_modification_time("CMakeLists.txt") > get_modification_time("build/CMakeCache.txt")) 
-            { // needs to be reconfigured
-                system("rmdir /s /q \"build\"");
-                ok = ok && msys("cmake -S . -B build") == 0;
-            }
-        } else if(ENOENT == errno) {
-            ok = ok && msys("cmake -S . -B build") == 0;
-        }
-    } else if(ENOENT == errno) {
-        char command[500];
-        sprintf(command, "git clone %s repository -b %s --recursive", url, branch);
-        ok = msys(command) == 0;
-        chdir("repository");
-        ok = ok && msys("cmake -S . -B build") == 0;
-    } else {
-        return 0;
-    }
-    return ok;
-}
-
-int build() {
-    return msys("cmake --build build") == 0;
-}
-int launch(const char *name) {
-    return system(name) == 0;
-}
-
-
 char *read_file_as_null_terminated_string(const char *file_path) {
     FILE *file = fopen(file_path, "rb");  // Open the file in binary mode
     if (file == NULL) {
@@ -143,7 +94,6 @@ char *read_file_as_null_terminated_string(const char *file_path) {
     fclose(file);  // Close the file
     return buffer;  // Return the buffer containing the null-terminated string
 }
-
 int is_package_installed(const char *package) {
     char command[256];
     snprintf(command, sizeof(command), 
@@ -152,7 +102,6 @@ int is_package_installed(const char *package) {
     int result = msys(command);
     return result == 0;  // Returns 1 if installed, 0 if not
 }
-
 void install_package(const char *package) {
     if (is_package_installed(package)) {
         printf("%s is already installed.\n", package);
@@ -183,17 +132,85 @@ void add_to_path(const char *var) {
     SetEnvironmentVariable("PATH", newPath);
 }
 
-int main(int argc, char **argv) {
-    char *json_file_name;
-    if(argc == 1) {
-        json_file_name = "../launch.json";
+
+int setup_repository(const char *url, const char *branch) {
+    int ok;
+    if(exists("repository")) { // directory exists, already cloned
+        chdir("repository");
+        ok = msys("git pull -j 4 --autostash") == 0;
+        ok = msys("git submodule update --remote --recursive -j 4") == 0;
+    } else if(ENOENT == errno) {
+        char command[500];
+        sprintf(command, "git clone %s repository -b %s --recursive", url, branch);
+        ok = msys(command) == 0;
+        chdir("repository");
     } else {
-        json_file_name = argv[1];
+        return 0;
     }
+    return ok;
+}
+int setup_wcmake() {
+    int ok = 1;
+    if(exists("build")) {
+        if(get_modification_time("CMakeLists.txt") > get_modification_time("build/CMakeCache.txt")) 
+        { // needs to be reconfigured
+            system("rmdir /s /q \"build\"");
+            ok = ok && msys("cmake -S . -B build") == 0;
+        }
+    } else if(ENOENT == errno) {
+        ok = ok && msys("cmake -S . -B build") == 0;
+    }
+    return ok;
+}
+int build_wcmake() {
+    return msys("cmake --build build") == 0;
+}
+int launch(const char *name) {
+    return system(name) == 0;
+}
+
+
+int main(int argc, char **argv) {
+    char const *json_file;
+    if(argc == 1) {
+        json_file = "../launch.json";
+    } else {
+        json_file = argv[1];
+    }
+
     mkdir("launcher");
     chdir("launcher");
-    snprintf(msys_dir, sizeof(msys_dir), "%s\\msys64", cwd()); 
 
+    if(!exists(json_file)) {
+        perror("launch file not found!\n");
+        system("pause");
+        return EXIT_FAILURE;
+    }
+
+    char *buffer = read_file_as_null_terminated_string(json_file);
+    nx_json const *json = nx_json_parse_utf8(buffer);
+
+    if(!json) {
+        perror("failed to parce json!\n");
+        system("pause");
+        return EXIT_FAILURE;
+    }
+
+    char const*    repo            = nx_json_get(json, "repo")       -> text_value;
+    char const*    branch          = nx_json_get(json, "branch")     -> text_value;
+    char const*    executable      = nx_json_get(json, "executable") -> text_value;
+    nx_json const* msys_dir_in     = nx_json_get(json, "msys path");
+    nx_json const* packages        = nx_json_get(json, "additional packages");
+    nx_json const* custom_commands = nx_json_get(json, "custom build commands");
+
+    printf("repo: %s on branch %s\n", repo, branch);
+
+    if(msys_dir_in) {
+        snprintf(msys_dir, sizeof(msys_dir), msys_dir_in->text_value); 
+    } else {
+        snprintf(msys_dir, sizeof(msys_dir), "%s\\msys64", cwd()); 
+    }
+    
     if(!exists(msys_dir)) {
         printf("downloading msys installer...\n");
         system("curl https://repo.msys2.org/distrib/msys2-x86_64-latest.exe -o msys2-x86_64-latest.exe");
@@ -206,34 +223,28 @@ int main(int argc, char **argv) {
     snprintf(msys_path, sizeof(msys_path), "%s\\mingw64\\bin;%s\\usr\\bin;", msys_dir, msys_dir);
     add_to_path(msys_path);
 
-    char *buffer = read_file_as_null_terminated_string(json_file_name);
-    nx_json const *json = nx_json_parse_utf8(buffer);
-
-    if(!json) {
-        perror("failed to parce json!");
-        return EXIT_FAILURE;
-    }
-
-    const char *    repo =      nx_json_get(json, "repo")->text_value;
-    const char *    branch =    nx_json_get(json, "branch")->text_value;
-    const char *    executable= nx_json_get(json, "executable")->text_value;
-    nx_json const * packages =  nx_json_get(json, "additional packages");
-
     if(!exists("repository/build")) {
         for(int i = 0; i < packages->children.length; ++i) {
             install_package(nx_json_item(packages, i)->text_value);
         }
         install_package("git");
-        install_package("mingw-w64-x86_64-gcc");
-        install_package("mingw-w64-x86_64-cmake");
-        install_package("mingw-w64-x86_64-ninja");
+        if(!custom_commands) {
+            install_package("mingw-w64-x86_64-gcc");
+            install_package("mingw-w64-x86_64-cmake");
+            install_package("mingw-w64-x86_64-ninja");
+        }
     }
-    
-    printf("repo: %s on branch %s\n", repo, branch);
-    printf("executable: %s\n", executable);
 
-    int ok = setup(repo, branch);
-    ok = ok && build();
+    int ok = setup_repository(repo, branch);
+    if(!custom_commands) {
+        ok = ok && setup_wcmake();
+        ok = ok && build_wcmake();
+    }
+    else {
+        for(int i = 0; i < custom_commands->children.length; ++i) {
+            msys(nx_json_item(custom_commands, i)->text_value);
+        }
+    }
     ok = ok && launch(executable);
     
     system("pause");
