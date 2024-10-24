@@ -208,7 +208,7 @@ int main(int argc, char **argv) {
     if(msys_dir_in) {
         snprintf(msys_dir, sizeof(msys_dir), msys_dir_in->text_value); 
     } else {
-        snprintf(msys_dir, sizeof(msys_dir), "%s\\msys64", cwd()); 
+        snprintf(msys_dir, sizeof(msys_dir), "C:\\msys64"); 
     }
     
     if(!exists(msys_dir)) {
@@ -220,7 +220,7 @@ int main(int argc, char **argv) {
         system(command);
     }
     char msys_path[1024];
-    snprintf(msys_path, sizeof(msys_path), "%s\\mingw64\\bin;%s\\usr\\bin;", msys_dir, msys_dir);
+    snprintf(msys_path, sizeof(msys_path), "%s\\mingw64\\bin;%s\\usr\\bin;%s;", msys_dir, msys_dir, msys_dir);
     add_to_path(msys_path);
 
     if(!exists("repository/build")) {
