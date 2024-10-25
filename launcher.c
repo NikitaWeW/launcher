@@ -8,10 +8,12 @@
 #include <errno.h>
 #include "nxjson.h"
 
+// buffers
 char cuwd[1024];
+char unix_path[1024];
+char windows_path[1024];
 
 char msys_dir[1024];
-char unix_path[1024];
 
 char *convert_to_unix_path(const char *windows_path) {
     if (windows_path[1] == ':') {
@@ -55,8 +57,8 @@ int exists(const char *name) {
   return stat(name, &buffer) == 0;
 }
 int msys(const char *cmd) {
-    char command[500];
-    sprintf(command, "%s/usr/bin/bash.exe -lc 'export PATH=/mingw64/bin:$PATH; cd %s; %s'", msys_dir, ucwd(), cmd);
+    char command[1024];
+    snprintf(command, sizeof(command), "%s/usr/bin/bash.exe -lc \"export PATH=/mingw64/bin:$PATH; cd %s; %s\"", msys_dir, ucwd(), cmd);
     return system(command);
 }
 char *read_file_as_null_terminated_string(const char *file_path) {
@@ -132,7 +134,6 @@ void add_to_path(const char *var) {
     SetEnvironmentVariable("PATH", newPath);
 }
 
-
 int setup_repository(const char *url, const char *branch) {
     int ok;
     if(exists("repository")) { // directory exists, already cloned
@@ -140,7 +141,7 @@ int setup_repository(const char *url, const char *branch) {
         ok = msys("git pull -j 4 --autostash") == 0;
         ok = msys("git submodule update --remote --recursive -j 4") == 0;
     } else if(ENOENT == errno) {
-        char command[500];
+        char command[1024];
         sprintf(command, "git clone %s repository -b %s --recursive", url, branch);
         ok = msys(command) == 0;
         chdir("repository");
@@ -169,7 +170,6 @@ int launch(const char *name) {
     return system(name) == 0;
 }
 
-
 int main(int argc, char **argv) {
     char const *json_file;
     if(argc == 1) {
@@ -196,12 +196,32 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    char const*    repo            = nx_json_get(json, "repo")       -> text_value;
-    char const*    branch          = nx_json_get(json, "branch")     -> text_value;
-    char const*    executable      = nx_json_get(json, "executable") -> text_value;
+    nx_json const* repo_in         = nx_json_get(json, "repo");
+    nx_json const* branch_in       = nx_json_get(json, "branch");
+    nx_json const* executable_in   = nx_json_get(json, "executable");
     nx_json const* msys_dir_in     = nx_json_get(json, "msys path");
     nx_json const* packages        = nx_json_get(json, "additional packages");
     nx_json const* custom_commands = nx_json_get(json, "custom build commands");
+
+    if(!repo_in) {
+        perror("repo is requiered!\n");
+        system("pause");
+        return EXIT_FAILURE;
+    }
+    if(!branch_in) {
+        perror("branch is requiered!\n");
+        system("pause");
+        return EXIT_FAILURE;
+    }
+    if(!executable_in) {
+        perror("executable is requiered!\n");
+        system("pause");
+        return EXIT_FAILURE;
+    }
+
+    char const* repo       = repo_in       -> text_value;
+    char const* branch     = branch_in     -> text_value;
+    char const* executable = executable_in -> text_value;
 
     printf("repo: %s on branch %s\n", repo, branch);
 
@@ -215,7 +235,7 @@ int main(int argc, char **argv) {
         printf("downloading msys installer...\n");
         system("curl https://repo.msys2.org/distrib/msys2-x86_64-latest.exe -o msys2-x86_64-latest.exe");
         printf("installing msys...\n");
-        char command[500];
+        char command[1024];
         snprintf(command, sizeof(command), ".\\msys2-x86_64-latest.exe in --confirm-command --accept-messages --root %s", msys_dir);
         system(command);
     }
@@ -245,10 +265,10 @@ int main(int argc, char **argv) {
             msys(nx_json_item(custom_commands, i)->text_value);
         }
     }
-    ok = ok && launch(executable);
     
-    system("pause");
+    ok = ok && launch(executable);
     nx_json_free(json);
     free(buffer);
+    system("pause");
     return ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
