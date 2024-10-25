@@ -13,7 +13,7 @@ There also is a Makefile if you need it
 | repo | repository url|
 | branch | git branch to clone |
 | executable | executable to launch after building |
-| additional packages | msys packages to install (not including gcc. cmake, etc.) |
+| additional packages **optional** | msys packages to install (not including gcc. cmake, etc.) |
 | msys path | **optional** path to msys root folder |
-| custom build commands | msys shell commands to override build process |
+| custom build commands **optional** | msys shell commands to override build process |
 ---
