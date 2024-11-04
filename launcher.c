@@ -156,10 +156,10 @@ int setup_wcmake() {
         if(get_modification_time("CMakeLists.txt") > get_modification_time("build/CMakeCache.txt")) 
         { // needs to be reconfigured
             system("rmdir /s /q \"build\"");
-            ok = ok && msys("cmake -S . -B build") == 0;
+            ok = ok && msys("cmake -S . -B build -D CMAKE_BUILD_TYPE=RELEASE") == 0;
         }
     } else if(ENOENT == errno) {
-        ok = ok && msys("cmake -S . -B build") == 0;
+        ok = ok && msys("cmake -S . -B build -D CMAKE_BUILD_TYPE=RELEASE") == 0;
     }
     return ok;
 }
