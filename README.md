@@ -6,9 +6,8 @@ first, download launcher [here](github.com/NikitaWeW/launcher/releases/latest) o
 then, get configuration. it looks like this:
 ``` json
 {
-    "repo": "project url,
+    "repo": "project url",
     "executable": "build\\main.exe"
-    // and so on...
 }
 ```
 
