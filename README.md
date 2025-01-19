@@ -1,3 +1,4 @@
+# needs refactoring 
 Small c tool to install the git repository, configure it with cmake and build controlled by json configuration. uses nxjson to parse launch.json. Targets windows.
 
 ## usage
